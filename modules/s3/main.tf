@@ -4,13 +4,13 @@
 
 resource "aws_s3_bucket" "sample_kb_bucket" {
   bucket        = var.kb_bucket_name_prefix
-  force_destroy = true
+  force_destroy = false
 }
 
 
 resource "aws_s3_bucket" "sample_kb_logging_bucket" {
   bucket        = var.log_bucket_name_prefix
-  force_destroy = true
+  force_destroy = false
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "sample_kb_bucket_encryption_configurations" {
@@ -75,4 +75,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "sample_kb_logging_bucket_lifec
     abort_incomplete_multipart_upload { days_after_initiation = 3 }
   }
 
+}
+
+# Block all public access to the knowledge base bucket
+resource "aws_s3_bucket_public_access_block" "sample_kb_bucket_pab" {
+  bucket = aws_s3_bucket.sample_kb_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Block all public access to the logging bucket
+resource "aws_s3_bucket_public_access_block" "sample_kb_logging_bucket_pab" {
+  bucket = aws_s3_bucket.sample_kb_logging_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }

@@ -154,13 +154,39 @@ output "bedrock_guardrail_arn" {
 }
 
 output "vpc_endpoint_ids" {
-  value = module.vpc_endpoints[0].interface_endpoint_ids
+  value = var.enable_endpoints ? module.vpc_endpoints[0].interface_endpoint_ids : null
 }
 
 output "bedrock_vpc_endpoint_ids" {
-  value = module.vpc_endpoints[0].bedrock_interface_endpoint_ids
+  value = var.enable_endpoints ? module.vpc_endpoints[0].bedrock_interface_endpoint_ids : null
 }
 
 output "s3_endpoint_id" {
-  value = module.vpc_endpoints[0].s3_endpoint_id
+  value = var.enable_endpoints ? module.vpc_endpoints[0].s3_endpoint_id : null
+}
+
+# New outputs for VPC and KMS
+output "vpc_id" {
+  description = "The ID of the created VPC"
+  value       = module.vpc.vpc_id
+}
+
+output "vpc_private_subnet_ids" {
+  description = "List of private subnet IDs"
+  value       = module.vpc.private_subnet_ids
+}
+
+output "vpc_public_subnet_ids" {
+  description = "List of public subnet IDs"
+  value       = module.vpc.public_subnet_ids
+}
+
+output "kms_key_id" {
+  description = "The ID of the created KMS key"
+  value       = module.kms.key_id
+}
+
+output "kms_key_arn" {
+  description = "The ARN of the created KMS key"
+  value       = module.kms.key_arn
 }

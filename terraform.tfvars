@@ -1,8 +1,6 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-
-
 # Sample Values, modify accordingly
 
 knowledge_base_name                 = "bedrock-kb"
@@ -14,7 +12,7 @@ app_name                            = "acme"
 env_name                            = "prod"
 app_region                          = "usw2"
 agent_model_id                      = "anthropic.claude-3-haiku-20240307-v1:0"
-bedrock_agent_invoke_log_bucket     = "<BUCKET-NAME>"
+bedrock_agent_invoke_log_bucket     = "bedrock-agent-logs"
 agent_name                          = "bedrock-agent"
 agent_alias_name                    = "bedrock-agent-alias"
 agent_action_group_name             = "bedrock-agent-ag"
@@ -34,12 +32,8 @@ EOT
 agent_description                   = "You are a fitness chatbot"
 agent_actiongroup_descrption        = "Use the action group to get the fitness plans, diet plans and historical details"
 kb_instructions_for_agent           = "Use the knowledge base when the user is asking for a definition about a fitness, diet plans. Give a very detailed answer and cite the source."
-kms_key_id                          = "arn:aws:kms:us-west-2:XXXXXXXXXXXXX:key/1488f8c9-6443-4486-9927-8825278e3aad"
-vpc_subnet_ids                      = ["subnet-0eb0b0e49448a5b49", "subnet-0f423fe837a1cfa22"]
-vpc_id                              = "vpc-047dd28296946f67c"
-cidr_blocks_sg                      = ["172.16.5.0/24", "172.16.6.0/24"]
 code_base_zip                       = "package.zip"
-code_base_bucket                    = "<BUCKET-NAME>"
+code_base_bucket                    = "bedrock-agent-code"
 enable_guardrails                   = true
 guardrail_name                      = "bedrock-guardrail"
 guardrail_blocked_input_messaging   = "This input is not allowed due to content restrictions."
@@ -112,3 +106,6 @@ guardrail_word_policy_config = [
     ]
   }
 ]
+
+# Frontend variables (optional)
+enable_frontend = false

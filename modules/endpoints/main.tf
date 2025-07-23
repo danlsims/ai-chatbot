@@ -14,11 +14,11 @@ resource "aws_security_group" "endpoint_security_group" {
     description = "Allow all ingress from VPC CIDR"
   }
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow egress to all"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.cidr_blocks_sg
+    description = "Allow HTTPS egress to VPC CIDR for AWS service endpoints"
   }
 }
 
@@ -72,11 +72,11 @@ resource "aws_security_group" "interface_group_lambda" {
   }
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow egress to all"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = var.cidr_blocks_sg
+    description = "Allow HTTPS egress to VPC CIDR for Bedrock endpoints"
   }
 }
 

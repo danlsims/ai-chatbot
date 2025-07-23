@@ -80,7 +80,7 @@ resource "aws_opensearchserverless_security_policy" "sample_kb_network_policy" {
           ]
         }
       ]
-      AllowFromPublic = true
+      AllowFromPublic = false
     }
   ])
 }

@@ -17,7 +17,14 @@ data "aws_bedrock_foundation_model" "kb" {
 
 data "aws_iam_policy_document" "bedrock_sample_kb_oss" {
   statement {
-    actions   = ["aoss:APIAccessAll"]
+    actions = [
+      "aoss:ReadDocument",
+      "aoss:WriteDocument",
+      "aoss:CreateIndex",
+      "aoss:DescribeIndex",
+      "aoss:UpdateIndex",
+      "aoss:DescribeCollectionItems"
+    ]
     resources = [var.aoss_collection_arn]
   }
 }

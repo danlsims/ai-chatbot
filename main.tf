@@ -1,17 +1,38 @@
-
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
+data "aws_region" "current" {}
+
+locals {
+  availability_zones = ["${data.aws_region.current.name}a", "${data.aws_region.current.name}b"]
+}
+
+module "vpc" {
+  source             = "./modules/vpc"
+  vpc_cidr           = "10.0.0.0/16"
+  private_subnets    = ["10.0.1.0/24", "10.0.2.0/24"]
+  public_subnets     = ["10.0.101.0/24", "10.0.102.0/24"]
+  availability_zones = local.availability_zones
+  app_name           = var.app_name
+  env_name           = var.env_name
+}
+
+module "kms" {
+  source                 = "./modules/kms"
+  app_name               = var.app_name
+  env_name               = var.env_name
+  deletion_window_in_days = 30
+}
 
 module "knowledge_base_bucket" {
   source                                = "./modules/s3"
   kb_bucket_name_prefix                 = "kb-${var.app_region}-${var.env_name}"
   log_bucket_name_prefix                = "kb-accesslog-${var.app_region}-${var.env_name}"
   kb_bucket_log_bucket_directory_prefix = "log-${var.app_region}-${var.env_name}"
-  kms_key_id                            = var.kms_key_id
+  kms_key_id                            = module.kms.key_arn
   enable_access_logging                 = var.enable_access_logging
   enable_s3_lifecycle_policies          = var.enable_s3_lifecycle_policies
-  vpc_id                                = var.vpc_id
+  vpc_id                                = module.vpc.vpc_id
 }
 
 module "roles" {
@@ -21,7 +42,7 @@ module "roles" {
   knowledge_base_bucket_arn           = module.knowledge_base_bucket.arn
   knowledge_base_arn                  = module.bedrock_knowledge_base.knowledge_base_arn
   bedrock_agent_invoke_log_group_name = "agent-invoke-log-${var.agent_name}-${var.app_region}-${var.env_name}"
-  kms_key_id                          = var.kms_key_id
+  kms_key_id                          = module.kms.key_arn
   env_name                            = var.env_name
   app_name                            = var.app_name
 }
@@ -31,13 +52,12 @@ module "aoss" {
   aoss_collection_name    = "${var.aoss_collection_name}-${var.app_region}-${var.env_name}"
   aoss_collection_type    = var.aoss_collection_type
   knowledge_base_role_arn = module.roles.knowledge_base_role_arn
-  vpc_id                  = var.vpc_id
-  vpc_subnet_ids          = var.vpc_subnet_ids
-  kms_key_id              = var.kms_key_id
+  vpc_id                  = module.vpc.vpc_id
+  vpc_subnet_ids          = module.vpc.private_subnet_ids
+  kms_key_id              = module.kms.key_arn
   env_name                = var.env_name
   app_name                = var.app_name
 }
-
 
 module "bedrock_knowledge_base" {
   source                    = "./modules/bedrock/knowledge_base"
@@ -48,11 +68,10 @@ module "bedrock_knowledge_base" {
   knowledge_base_model_id   = var.knowledge_base_model_id
   knowledge_base_name       = "${var.knowledge_base_name}-${var.app_region}-${var.env_name}"
   agent_model_id            = var.agent_model_id
-  kms_key_id                = var.kms_key_id
+  kms_key_id                = module.kms.key_arn
   env_name                  = var.env_name
   app_name                  = var.app_name
 }
-
 
 module "bedrock_agent" {
   source                              = "./modules/bedrock/agent"
@@ -73,10 +92,10 @@ module "bedrock_agent" {
   code_base_bucket                    = var.code_base_bucket
   code_base_zip                       = var.code_base_zip
   kb_instructions_for_agent           = var.kb_instructions_for_agent
-  vpc_id                              = var.vpc_id
-  cidr_blocks_sg                      = var.cidr_blocks_sg
-  vpc_subnet_ids                      = var.vpc_subnet_ids
-  kms_key_id                          = var.kms_key_id
+  vpc_id                              = module.vpc.vpc_id
+  cidr_blocks_sg                      = module.vpc.private_subnet_cidr_blocks
+  vpc_subnet_ids                      = module.vpc.private_subnet_ids
+  kms_key_id                          = module.kms.key_arn
   env_name                            = var.env_name
   app_name                            = var.app_name
 }
@@ -92,15 +111,15 @@ module "bedrock_guardrail" {
   sensitive_information_policy_config = var.guardrail_sensitive_information_policy_config
   topic_policy_config                 = var.guardrail_topic_policy_config
   word_policy_config                  = var.guardrail_word_policy_config
-  kms_key_id                          = var.kms_key_id
+  kms_key_id                          = module.kms.key_arn
 }
 
 module "vpc_endpoints" {
   source                                = "./modules/endpoints"
   count                                 = var.enable_endpoints ? 1 : 0
-  vpc_id                                = var.vpc_id
-  cidr_blocks_sg                        = var.cidr_blocks_sg
-  vpc_subnet_ids                        = var.vpc_subnet_ids
+  vpc_id                                = module.vpc.vpc_id
+  cidr_blocks_sg                        = module.vpc.private_subnet_cidr_blocks
+  vpc_subnet_ids                        = module.vpc.private_subnet_ids
   lambda_security_group_id              = module.bedrock_agent.lambda_security_group_id
   enable_cloudwatch_endpoint            = true
   enable_kms_endpoint                   = true
@@ -130,4 +149,76 @@ module "agent_update_lifecycle" {
   ssm_parameter_kb_instruction_history    = module.bedrock_knowledge_base.ssm_parameter_kb_instruction_history
   lambda_function_name                    = module.bedrock_agent.lambda_function_name
   depends_on                              = [module.knowledge_base_bucket, module.roles, module.aoss, module.bedrock_knowledge_base, module.bedrock_agent, module.bedrock_guardrail[0]]
+}
+
+# Frontend module (conditional)
+module "frontend" {
+  count                           = var.enable_frontend ? 1 : 0
+  source                          = "./modules/frontend"
+  app_name                        = var.app_name
+  env_name                        = var.env_name
+  app_region                      = var.app_region
+  kms_key_id                      = module.kms.key_arn
+  
+  # Identity Center Configuration
+  identity_center_instance_arn    = var.identity_center_instance_arn
+  identity_center_issuer_url      = var.identity_center_issuer_url
+  identity_center_client_id       = var.identity_center_client_id
+  identity_center_client_secret   = var.identity_center_client_secret
+  frontend_application_name       = var.frontend_application_name
+  
+  # Domain Configuration
+  enable_custom_domain            = var.enable_custom_domain
+  website_domain_name             = var.website_domain_name
+  api_domain_name                 = var.api_domain_name
+  route53_hosted_zone_id          = var.route53_hosted_zone_id
+  ssl_certificate_arn             = var.ssl_certificate_arn
+  
+  # S3 Configuration
+  frontend_bucket_name            = var.frontend_bucket_name
+  
+  # CloudFront Configuration
+  cloudfront_price_class          = var.cloudfront_price_class
+  cloudfront_comment              = var.cloudfront_comment
+  
+  # API Gateway Configuration
+  api_gateway_name                = var.api_gateway_name
+  api_stage_name                  = var.api_stage_name
+  
+  # CORS Configuration
+  cors_allowed_origins            = var.cors_allowed_origins
+  cors_allowed_methods            = var.cors_allowed_methods
+  cors_allowed_headers            = var.cors_allowed_headers
+  
+  # Lambda Configuration
+  api_lambda_function_name        = var.api_lambda_function_name
+  api_lambda_memory_size          = var.api_lambda_memory_size
+  api_lambda_timeout              = var.api_lambda_timeout
+  api_lambda_runtime              = var.api_lambda_runtime
+  
+  # Security Configuration
+  jwt_token_expiration            = var.jwt_token_expiration
+  api_throttle_burst_limit        = var.api_throttle_burst_limit
+  api_throttle_rate_limit         = var.api_throttle_rate_limit
+  
+  # Monitoring Configuration
+  enable_api_gateway_logging      = var.enable_api_gateway_logging
+  api_gateway_log_level           = var.api_gateway_log_level
+  enable_xray_tracing             = var.enable_xray_tracing
+  api_lambda_log_retention_days   = var.api_lambda_log_retention_days
+  api_gateway_log_retention_days  = var.api_gateway_log_retention_days
+  
+  # Bedrock Agent Integration
+  bedrock_agent_id                = module.bedrock_agent.agent_id
+  bedrock_agent_alias_id          = module.bedrock_agent.agent_alias_id
+  
+  # VPC Configuration
+  vpc_id                          = module.vpc.vpc_id
+  vpc_subnet_ids                  = module.vpc.private_subnet_ids
+  cidr_blocks_sg                  = module.vpc.private_subnet_cidr_blocks
+  
+  depends_on = [
+    module.bedrock_agent,
+    module.bedrock_knowledge_base
+  ]
 }
